@@ -5,10 +5,14 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 from email.header import Header
-from typing import List, Optional
+from email.utils import formataddr
+from typing import List, Optional, Dict
 from datetime import datetime
 import os
 import logging
+import base64
+import mimetypes
+import urllib.parse
 
 from ..database.smtp_collection import smtp_config_collection, email_log_collection
 
@@ -30,8 +34,8 @@ class SMTPService:
         cc_emails: Optional[List[str]] = None,
         bcc_emails: Optional[List[str]] = None,
         is_html: bool = False,
-        attachments: Optional[List[str]] = None
-    ) -> dict:
+        attachment_ids: Optional[List[str]] = None
+    ) -> Dict[str, any]:
         """发送邮件"""
         
         # 获取SMTP配置
@@ -82,19 +86,86 @@ class SMTPService:
                 message.attach(MIMEText(body, "plain", "utf-8"))
             
             # 添加附件
-            if attachments:
-                for file_path in attachments:
-                    if os.path.isfile(file_path):
-                        with open(file_path, "rb") as attachment:
-                            part = MIMEBase("application", "octet-stream")
-                            part.set_payload(attachment.read())
+            if attachment_ids:
+                from ..services.file_service import file_service
+                
+                for file_id in attachment_ids:
+                    try:
+                        # 获取文件信息
+                        file_info = await file_service.get_file_info(file_id)
+                        if not file_info:
+                            continue
                         
-                        encoders.encode_base64(part)
-                        part.add_header(
-                            "Content-Disposition",
-                            f"attachment; filename= {os.path.basename(file_path)}"
-                        )
+                        # 读取文件内容
+                        file_data = await file_service.read_file_content(file_info['file_path'])
+                        original_size = len(file_data)
+                        
+                        # 确定MIME类型，优先使用数据库中的content_type，如果为空则根据文件扩展名推断
+                        mime_type = file_info['content_type']
+                        if not mime_type or mime_type == 'application/octet-stream':
+                            # 使用mimetypes模块根据文件扩展名推断MIME类型
+                            guessed_type, _ = mimetypes.guess_type(file_info['filename'])
+                            mime_type = guessed_type or 'application/octet-stream'
+                        
+                        main_type, sub_type = mime_type.split('/', 1) if '/' in mime_type else ('application', 'octet-stream')
+                        
+                        self.logger.info(f"附件 {file_info['filename']} 原始大小: {original_size} bytes, MIME类型: {mime_type}")
+                        
+                        # 创建附件部分 - 使用更标准的方式
+                        if main_type == 'text':
+                            # 对于文本文件，使用MIMEText
+                            if isinstance(file_data, bytes):
+                                file_data = file_data.decode('utf-8', errors='replace')
+                            part = MIMEText(file_data, sub_type, 'utf-8')
+                        else:
+                            # 对于二进制文件，使用MIMEBase
+                            part = MIMEBase(main_type, sub_type)
+                            
+                            # 确保文件数据是bytes类型
+                            if isinstance(file_data, str):
+                                file_data = file_data.encode('utf-8')
+                            
+                            part.set_payload(file_data)
+                            
+                            # 编码附件
+                            encoders.encode_base64(part)
+                        
+                        # 记录处理后的大小
+                        if main_type == 'text':
+                            processed_size = len(part.get_payload().encode('utf-8'))
+                            self.logger.info(f"附件 {file_info['filename']} 文本处理后大小: {processed_size} bytes")
+                        else:
+                            encoded_size = len(part.get_payload())
+                            self.logger.info(f"附件 {file_info['filename']} base64编码后大小: {encoded_size} bytes")
+                        
+                        # 添加附件头部
+                        filename = file_info['filename']
+                        
+                        # 使用正确的方式设置Content-Disposition，避免邮件客户端显示为.bin文件
+                        try:
+                            # 尝试ASCII编码
+                            filename.encode('ascii')
+                            # 如果是ASCII字符，直接使用
+                            disposition = f'attachment; filename="{filename}"'
+                        except UnicodeEncodeError:
+                            # 如果包含非ASCII字符，使用RFC2231标准
+                            encoded_filename = urllib.parse.quote(filename, safe='')
+                            disposition = f'attachment; filename*=utf-8\'\'{encoded_filename}'
+                        
+                        # 设置附件头部信息
+                        part.add_header("Content-Disposition", disposition)
+                        
+                        # 对于文本文件，确保正确的Content-Type设置
+                        if main_type == 'text':
+                            # MIMEText会自动设置Content-Type，但我们需要确保它作为附件处理
+                            part.replace_header('Content-Type', f'{mime_type}; name="{filename}"')
+                        
+                        # Content-Transfer-Encoding会由相应的MIME类和编码器自动设置
                         message.attach(part)
+                        
+                    except Exception as e:
+                        self.logger.warning(f"附件处理失败: {str(e)}")
+                        continue
             
             # 准备收件人列表
             all_recipients = to_emails.copy()

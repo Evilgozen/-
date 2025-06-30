@@ -141,7 +141,7 @@ async def send_email(email: EmailSchema = Body(...)):
             cc_emails=email.cc_emails,
             bcc_emails=email.bcc_emails,
             is_html=email.is_html,
-            attachments=email.attachments
+            attachment_ids=email.attachment_ids
         )
         
         if result["success"]:
@@ -161,7 +161,8 @@ async def send_email_to_teachers(
     teacher_ids: list = Body(..., description="教师ID列表"),
     subject: str = Body(..., description="邮件主题"),
     body: str = Body(..., description="邮件正文"),
-    is_html: bool = Body(False, description="是否为HTML格式")
+    is_html: bool = Body(False, description="是否为HTML格式"),
+    attachment_ids: list = Body(None, description="附件文件ID列表")
 ):
     """批量发送邮件给指定教师"""
     try:
@@ -183,7 +184,8 @@ async def send_email_to_teachers(
             to_emails=teacher_emails,
             subject=subject,
             body=body,
-            is_html=is_html
+            is_html=is_html,
+            attachment_ids=attachment_ids
         )
         
         if result["success"]:

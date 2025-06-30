@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from server.routes.student import router as StudentRouter
 from server.routes.teacher import router as TeacherRouter
 from server.routes.smtp import router as SMTPRouter
+from server.routes.file import router as FileRouter
 
 app = FastAPI()
 
@@ -26,6 +27,7 @@ app.add_middleware(
 app.include_router(StudentRouter, tags=["Student"], prefix="/students")
 app.include_router(TeacherRouter, tags=["Teacher"], prefix="/teacher")
 app.include_router(SMTPRouter, tags=["SMTP"], prefix="/smtp")
+app.include_router(FileRouter, tags=["File"], prefix="/files")
 
 @app.get("/", tags=["Root"])
 async def read_root():

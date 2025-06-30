@@ -11,3 +11,6 @@ httpx==0.25.2
 
 # SMTP相关
 aiosmtplib==3.0.1
+
+# 文件处理
+aiofiles==23.2.0

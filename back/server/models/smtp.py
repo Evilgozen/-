@@ -25,6 +25,12 @@ class SMTPConfigSchema(BaseModel):
             }
         }
 
+class AttachmentSchema(BaseModel):
+    """附件模型"""
+    name: str = Field(..., description="文件名")
+    content: str = Field(..., description="文件内容(base64编码)")
+    type: str = Field(..., description="文件MIME类型")
+
 class EmailSchema(BaseModel):
     """邮件发送模型"""
     to_emails: List[EmailStr] = Field(..., description="收件人邮箱列表")
@@ -33,7 +39,7 @@ class EmailSchema(BaseModel):
     subject: str = Field(..., description="邮件主题")
     body: str = Field(..., description="邮件正文")
     is_html: bool = Field(False, description="是否为HTML格式")
-    attachments: Optional[List[str]] = Field(None, description="附件文件路径列表")
+    attachment_ids: Optional[List[str]] = Field(None, description="附件文件ID列表")
     
     class Config:
         schema_extra = {
