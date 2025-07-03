@@ -29,18 +29,21 @@
         :data-source="logs"
         :pagination="pagination"
         :scroll="{ x: 800 }"
-        row-key="id"
+        row-key="key"
         size="middle"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'to_emails'">
-            <a-tooltip :title="record.to_emails.join(', ')">
-              <a-tag v-for="(email, index) in record.to_emails.slice(0, 2)" :key="index" color="blue">
-                {{ email }}
-              </a-tag>
-              <a-tag v-if="record.to_emails.length > 2" color="default">
-                +{{ record.to_emails.length - 2 }}
-              </a-tag>
+            <a-tooltip :title="Array.isArray(record.to_emails) ? record.to_emails.join(', ') : record.to_emails || ''">
+              <template v-if="Array.isArray(record.to_emails) && record.to_emails.length > 0">
+                <a-tag v-for="(email, index) in record.to_emails.slice(0, 2)" :key="index" color="blue">
+                  {{ email }}
+                </a-tag>
+                <a-tag v-if="record.to_emails.length > 2" color="default">
+                  +{{ record.to_emails.length - 2 }}
+                </a-tag>
+              </template>
+              <span v-else>-</span>
             </a-tooltip>
           </template>
           
@@ -215,13 +218,35 @@ const loadLogs = async () => {
     
     const response = await smtpApi.getEmailLogs(params)
     if (response.code === 200 && response.data) {
-      logs.value = response.data
-      pagination.total = response.data.length
+      // 处理嵌套数组结构：data: [[{...}, {...}]]
+      let logData = response.data
+      if (Array.isArray(logData) && logData.length > 0 && Array.isArray(logData[0])) {
+        logData = logData[0] // 取第一个数组中的邮件日志数据
+      } else if (!Array.isArray(logData)) {
+        logData = []
+      }
+      
+      logs.value = logData.map((log, index) => ({
+        ...log,
+        // 确保每个记录都有唯一的key，如果没有id则使用索引
+        key: log.id || log._id || `log-${index}`,
+        // 确保必要字段存在
+        to_emails: log.to_emails || [],
+        cc_emails: log.cc_emails || [],
+        bcc_emails: log.bcc_emails || [],
+        subject: log.subject || '',
+        body: log.body || '',
+        status: log.status || 'unknown',
+        send_time: log.send_time || new Date().toISOString(),
+        sender_email: log.sender_email || ''
+      }))
+      pagination.total = logs.value.length
     } else {
       logs.value = []
       pagination.total = 0
     }
   } catch (error) {
+    console.error('加载邮件记录失败:', error)
     message.error('加载邮件记录失败')
     logs.value = []
     pagination.total = 0

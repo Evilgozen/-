@@ -28,7 +28,14 @@ export const smtpApi = {
   
   // 邮件发送相关
   sendEmail: (emailData) => api.post('/send', emailData),
-  sendToTeachers: (data) => api.post('/send-to-teachers', data),
+  sendToTeachers: (teacherIds, subject, body, isHtml = false, attachmentIds = []) => 
+    api.post('/send-to-teachers', {
+      teacher_ids: teacherIds,
+      subject: subject,
+      body: body,
+      is_html: isHtml,
+      attachment_ids: attachmentIds
+    }),
   
   // 邮件记录相关
   getEmailLogs: (params = {}) => {

@@ -25,10 +25,25 @@ export const teacherApi = {
   // 获取单个教师
   getTeacher: (id) => api.get(`/${id}`),
   
-  // 按学院筛选教师
+  // 添加教师
+  addTeacher: (teacher) => api.post('/', teacher),
+  
+  // 更新教师
+  updateTeacher: (id, teacher) => api.put(`/${id}`, teacher),
+  
+  // 删除教师
+  deleteTeacher: (id) => api.delete(`/${id}`),
+  
+  // 按学校层次筛选教师
+  getTeachersBySchoolLevel: (schoolLevel) => api.post('/search/school_level', { school_level: schoolLevel }),
+  
+  // 按学校筛选教师
+  getTeachersBySchool: (school) => api.post('/search/school', { school: school }),
+  
+  // 按学院筛选教师 (保留兼容性)
   getTeachersByCollege: (college) => api.get(`/college/${college}`),
   
-  // 按研究方向筛选教师
+  // 按研究方向筛选教师 (保留兼容性)
   getTeachersByResearch: (research) => api.get(`/research/${research}`)
 }
 
